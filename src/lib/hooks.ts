@@ -34,6 +34,13 @@ export function useSkips(person?: Person): ReadonlySet<string> {
   const rows = useLive<string[]>(async () => (await db.days.where('person').equals(p).toArray()).filter((d) => d.skip).map((d) => d.date), [p], [])
   return useMemo(() => new Set(rows), [rows])
 }
+/** Skipped days with the reason and the Friday answer, for working out the shifted week. */
+export function useSkipMap(person?: Person): Record<string, { reason: string; useOff?: boolean }> {
+  const me = usePerson()
+  const p = person ?? me
+  const rows = useLive<[string, { reason: string; useOff?: boolean }][]>(async () => (await db.days.where('person').equals(p).toArray()).filter((d) => d.skip).map((d) => [d.date, d.skip!] as [string, { reason: string; useOff?: boolean }]), [p], [])
+  return useMemo(() => Object.fromEntries(rows), [rows])
+}
 export function useTick(ms = 250, on = true) {
   const [, set] = useState(0)
   useEffect(() => { if (!on) return; const id = setInterval(() => set((x) => x + 1), ms); return () => clearInterval(id) }, [ms, on])

@@ -4,7 +4,8 @@ import { AlertTriangle, ArrowRight, CalendarOff, Check, Pencil, Clock, Droplets,
 import { useStore, usePerson, useWeightHidden } from '../store'
 import { NAME, PEOPLE, WD_LABEL, WEEKDAYS, type Person, type Weekday } from '../types'
 import { db, dayId, patchDay, setWeight, useLive, type DayRow } from '../db'
-import { useNow, usePosition, useSessions, useSkips } from '../lib/hooks'
+import { useNow, usePosition, useSessions, useSkipMap, useSkips } from '../lib/hooks'
+import { describeMoves, gymDayFn, offDayOf, previewSkip, weekPlan, weekStartOf } from '../engine/schedule'
 import { syncReminders } from '../lib/reminders'
 import { SessionEditor } from '../components/SessionEditor'
 import { RoutineSheet, type Routine } from '../components/RoutineSheet'
@@ -19,6 +20,7 @@ import { Btn, Card, Chip, Ring, Section, Sheet, Stepper, Ticker, cx, item, stagg
 import { downloadBackup } from '../lib/backup'
 import { extrasOf } from '../lib/insights'
 
+const FULL_DAY: Record<Weekday, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' }
 const WATER_L: Record<Person, number> = { vikas: 3.5, varsha: 2.75 }
 const STEPS: Record<Person, number> = { vikas: 7500, varsha: 9500 }
 export const GLASS = 0.25
@@ -58,8 +60,10 @@ export function Today() {
   const day = useDay(person, pos.date)
   const [pick, setPick] = useState(false)
   const skips = useSkips(person)
+  const skipMap = useSkipMap(person)
   const skippedToday = skips.has(pos.date)
   const [skipOpen, setSkipOpen] = useState(false)
+  const [offAsk, setOffAsk] = useState<string | null>(null)   // the reason chosen, while we ask about the day off
   const [editId, setEditId] = useState<string | null>(null)
   const [routine, setRoutine] = useState<Routine | null>(null)
   const lastRoutine = useRef<Routine>('warm')
@@ -69,10 +73,15 @@ export function Today() {
   const todayW = useLive(() => db.weights.get(dayId(person, pos.date)), [person, pos.date], undefined)
   useEffect(() => { setKg(todayW?.kg ?? profile.weightKg) }, [todayW?.kg, profile.weightKg, person])
 
-  const plan = todayPlan(person, pos, profile)
+  const offDay = offDayOf(person, profile)
+  const sched = useMemo(() => (pos.phase === 'program' ? weekPlan(person, weekStartOf(pos.date), offDay, skipMap) : null), [person, pos.date, pos.phase, offDay, skipMap])
+  const slot = sched ? sched.slots[WEEKDAYS.indexOf(pos.weekday)] : null
+  /** Same as pos, but with the session that really sits on today after the day off and any skipped days. */
+  const epos = slot ? { ...pos, weekday: slot.session } : pos
+  const plan = todayPlan(person, epos, profile)
   const res = plan.kind === 'day' || plan.kind === 'day0' ? plan.res : null
   const doneKeys = weekKeys(sessions ?? [], pos.cycle, pos.weekIndex)
-  const todayKey = plan.kind === 'day0' ? 'day0' : pos.weekday
+  const todayKey = plan.kind === 'day0' ? 'day0' : epos.weekday
   const doneToday = (sessions ?? []).find((s) => s.date === pos.date && s.finishedAt)
   const thisDone = plan.kind === 'day0' ? (sessions ?? []).some((s) => s.key === 'day0') : doneKeys.has(todayKey)
   const muscles = res ? sessionMuscles(res.steps) : null
@@ -81,32 +90,36 @@ export function Today() {
   const menu = useMenu(person, wIdx, dIdx, day.swaps)
 
   const missed = useMemo(() => {
-    if (pos.phase !== 'program' || !sessions) return null
-    for (const wd of WEEKDAYS.slice(0, dayIndex(pos.weekday))) {
-      const def = PROGRAMS[person].days[wd]
-      if (['rest', 'active'].includes(def.kind) || doneKeys.has(wd)) continue
-      if (pos.mergedDay0 && wd === 'mon') continue
-      if (skips.has(addDays(pos.date, WEEKDAYS.indexOf(wd) - dayIndex(pos.weekday)))) continue
-      return { wd, title: def.title }
+    if (pos.phase !== 'program' || !sessions || !sched) return null
+    for (const sl of sched.slots.slice(0, dayIndex(pos.weekday))) {
+      const def = PROGRAMS[person].days[sl.session]
+      if (sl.off || sl.skipped || ['rest', 'active'].includes(def.kind) || doneKeys.has(sl.session)) continue
+      if (pos.mergedDay0 && sl.day === 'mon') continue
+      return { wd: sl.session, title: def.title }
     }
     return null
-  }, [pos, sessions, person, skips]) // eslint-disable-line
+  }, [pos, sessions, person, sched]) // eslint-disable-line
 
   const mins = istMinutes(d)
   const next = menu.plan.slots.map((s) => ({ s, at: menu.times[s.id] ?? 0 })).filter((x) => !day.eaten[x.s.id]).sort((a, b) => a.at - b.at).find((x) => x.at >= mins - 45)
   const nextOpt = next ? menu.chosen.find((c) => c.slot === next.s.id)!.option : null
   const until = next ? Math.round(next.at - mins) : 0
   const proteinEaten = menu.chosen.reduce((n, c) => n + (day.eaten[c.slot] ? menu.scaled.protein[c.slot] ?? 0 : 0), 0) + extrasOf(day).protein
-  const stk = streak(sessions ?? [], pos.date, settings.programStart, skips)
+  const stk = streak(sessions ?? [], pos.date, settings.programStart, skips, gymDayFn(person, offDay, skipMap))
   const positionLabel = pos.phase === 'program' ? `Month ${pos.month} · Week ${pos.weekInMonth} · ${res && 'mod' in res ? res.mod.name : ''} · Day ${pos.dayNumber}${pos.cycle > 1 ? ` · Cycle ${pos.cycle}` : ''}`
     : pos.phase === 'day0' ? 'Day 0 · Orientation' : pos.phase === 'before' ? `Starts ${fmtDate(settings.programStart)}` : 'Week 1 starts tomorrow'
 
   const begin = (wd: Weekday, isDay0 = false) => {
     const title = isDay0 ? 'Day 0 — Orientation' : PROGRAMS[person].days[wd].title
-    startSession(person, pos, { weekday: wd, isDay0, title })
+    startSession(person, pos, { weekday: wd, isDay0, title })   // wd is the session, not the calendar day
   }
   const [gh, gm] = profile.gymTime.split(':').map(Number)
   const gymAt = (gh || 7) * 60 + (gm || 0)
+  const doSkip = (reason: string, useOff?: boolean) => {
+    setSkipOpen(false); setOffAsk(null)
+    void patchDay(person, pos.date, (x) => { x.skip = useOff === undefined ? { reason } : { reason, useOff } }).then(() => syncReminders().catch(() => undefined))
+    say('Noted. Your sessions have moved.')
+  }
   const workoutDue = !active && !thisDone && !skippedToday && plan.kind === 'day' && !!res && res.def.kind !== 'rest' && res.def.kind !== 'active' && mins >= gymAt - 30 && mins <= gymAt + 150
   const glassesTarget = Math.round(waterTarget(person, profile) / GLASS)
   const glassesByNow = Math.round(glassesTarget * Math.min(1, Math.max(0, (mins - 7 * 60) / (21 * 60 - 7 * 60))))
@@ -161,7 +174,7 @@ export function Today() {
             </div>
           </Card>
         ) : res!.def.kind === 'rest' ? (
-          <Card><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-2xl bg-a1/15 accent-text grid place-items-center"><Moon /></div><div><div className="display text-[24px] font-semibold">Rest day</div><div className="text-[14px] text-mute">{res!.def.note}</div></div></div>
+          <Card><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-2xl bg-a1/15 accent-text grid place-items-center"><Moon /></div><div><div className="display text-[24px] font-semibold">{slot?.off ? 'Day off' : 'Rest day'}</div><div className="text-[14px] text-mute">{slot?.off ? 'Your weekly day off. Eat well, sleep well. Your next session is already lined up.' : res!.def.note}</div></div></div>
             <Btn kind="soft" className="w-full mt-4" onClick={() => setPick(true)}><Shuffle size={16} /> Do a session anyway</Btn></Card>
         ) : (
           <Card className="accent-ring overflow-hidden relative">
@@ -177,8 +190,9 @@ export function Today() {
               <div className="relative mt-4 rounded-2xl bg-s2 border border-line/60 p-3" data-testid="skipped-card">
                 <div className="flex items-center gap-2 text-[14px] font-semibold"><CalendarOff size={16} /> Not going today · {day.skip?.reason}</div>
                 <p className="text-[13px] text-mute mt-1">Your streak is safe and the gym reminder is paused. Meals and water carry on.</p>
+                {sched && <p className="text-[12px] text-mute mt-1" data-testid="moved-line">Moved: {describeMoves(person, sched, pos.date)}</p>}
                 <div className="flex gap-2 mt-3">
-                  <Btn className="flex-1" onClick={() => begin(pos.weekday, plan.kind === 'day0')}><Play size={18} /> Start anyway</Btn>
+                  <Btn className="flex-1" onClick={() => { void patchDay(person, pos.date, (x) => { delete x.skip }).then(() => syncReminders().catch(() => undefined)); begin(epos.weekday, plan.kind === 'day0') }}><Play size={18} /> Start anyway</Btn>
                   <Btn kind="soft" onClick={() => { void patchDay(person, pos.date, (x) => { delete x.skip }).then(() => syncReminders().catch(() => undefined)); say('Back on for today') }}>Undo</Btn>
                 </div>
               </div>
@@ -186,7 +200,7 @@ export function Today() {
               <div className="relative flex gap-2 mt-4">
                 {thisDone
                   ? <div className="flex-1 min-h-[48px] rounded-2xl bg-ok/15 text-ok border border-ok/30 font-semibold grid place-items-center"><span className="inline-flex items-center gap-2"><Check size={18} /> Logged{doneToday?.volume ? ` · ${doneToday.volume.toLocaleString('en-IN')} kg` : ''}</span></div>
-                  : <Btn className="flex-1" onClick={() => begin(pos.weekday, plan.kind === 'day0')}><Play size={18} /> Start</Btn>}
+                  : <Btn className="flex-1" onClick={() => begin(epos.weekday, plan.kind === 'day0')}><Play size={18} /> Start</Btn>}
                 {thisDone && doneToday && <Btn kind="soft" label="Edit this workout" onClick={() => setEditId(doneToday.id)}><Pencil size={18} /></Btn>}
                 {plan.kind === 'day' && <Btn kind="soft" label="Do a different session" onClick={() => setPick(true)}><Shuffle size={18} /></Btn>}
               </div>
@@ -211,7 +225,7 @@ export function Today() {
           { l: 'Protein', v: proteinEaten / Math.max(1, menu.t.protein), txt: `${Math.round(proteinEaten)} g`, icon: <Utensils size={16} />, on: () => setTab('diet') },
           { l: 'Water', v: (day.water * GLASS) / WATER_L[person], txt: `${(day.water * GLASS).toFixed(2).replace(/\.?0+$/, '')} L`, icon: <Droplets size={16} />, on: () => { void patchDay(person, pos.date, (x) => { x.water += 1 }); say('+1 glass (250 ml)') } },
           { l: 'Steps', v: day.steps / STEPS[person], txt: day.steps ? `${(day.steps / 1000).toFixed(1)}k` : 'Log', icon: <Footprints size={16} />, on: () => setStepsOpen(true) },
-          { l: 'Workout', v: thisDone || doneToday ? 1 : active ? 0.5 : 0, txt: thisDone || doneToday ? 'Done' : active ? 'Going' : skippedToday ? 'Skipped' : res && res.def.kind === 'rest' ? 'Rest' : 'Not yet', icon: <Dumbbell size={16} />, on: () => active && open({ type: 'session' }) },
+          { l: 'Workout', v: thisDone || doneToday ? 1 : active ? 0.5 : 0, txt: thisDone || doneToday ? 'Done' : active ? 'Going' : skippedToday ? 'Skipped' : slot?.off ? 'Day off' : res && res.def.kind === 'rest' ? 'Rest' : 'Not yet', icon: <Dumbbell size={16} />, on: () => active && open({ type: 'session' }) },
         ].map((r) => (
           <button key={r.l} type="button" onClick={r.on} aria-label={`${r.l}: ${r.txt}`} className="card p-2.5 flex flex-col items-center gap-1 active:scale-[0.97] transition-transform">
             <Ring value={r.v} size={58} stroke={6}><span className="accent-text">{r.icon}</span></Ring>
@@ -248,13 +262,27 @@ export function Today() {
 
       <SessionEditor id={editId} onClose={() => setEditId(null)} />
       <RoutineSheet open={!!routine} initial={lastRoutine.current} dayKind={res?.def.kind ?? 'full'} onClose={() => setRoutine(null)} />
-      <Sheet open={skipOpen} onClose={() => setSkipOpen(false)} title="Not going to the gym today?">
-        <p className="text-[14px] text-mute mb-3">Pick a reason. Your streak stays safe, today won’t count as a miss, and the gym reminder is paused.</p>
-        <div className="space-y-2" data-testid="skip-reasons">
-          {['Travelling', 'Not feeling well', 'Injury or sore', 'Busy day', 'Just resting'].map((r) => (
-            <button key={r} type="button" onClick={() => { setSkipOpen(false); void patchDay(person, pos.date, (x) => { x.skip = { reason: r } }).then(() => syncReminders().catch(() => undefined)); say('Noted. Enjoy the day.') }}
-              className="w-full min-h-[52px] px-4 rounded-2xl bg-s2 border border-line/60 text-left font-medium active:scale-[0.99]">{r}</button>))}
-        </div>
+      <Sheet open={skipOpen} onClose={() => { setSkipOpen(false); setOffAsk(null) }} title={offAsk ? `Will you work out on ${offDay ? FULL_DAY[offDay] : 'your day off'}?` : 'Not going to the gym today?'}>
+        {offAsk && offDay ? (() => {
+          const pv = previewSkip(person, pos.date, offDay, skipMap)
+          return (
+            <div data-testid="off-ask">
+              <p className="text-[14px] text-mute mb-3">Today’s session moves to tomorrow, and everything after it moves one day later. {FULL_DAY[offDay]} is your day off, so it’s your call whether to use it.</p>
+              <div className="space-y-2">
+                <button type="button" data-testid="off-yes" onClick={() => doSkip(offAsk, true)} className="w-full min-h-[64px] px-4 py-2 rounded-2xl bg-s2 border border-line/60 text-left active:scale-[0.99]">
+                  <span className="font-medium block">Yes, train on {FULL_DAY[offDay]}</span><span className="text-[12px] text-mute">{describeMoves(person, pv.yes, pos.date)}</span></button>
+                <button type="button" data-testid="off-no" onClick={() => doSkip(offAsk, false)} className="w-full min-h-[64px] px-4 py-2 rounded-2xl bg-s2 border border-line/60 text-left active:scale-[0.99]">
+                  <span className="font-medium block">No, keep {FULL_DAY[offDay]} off</span><span className="text-[12px] text-mute">{describeMoves(person, pv.no, pos.date)}</span></button>
+              </div>
+            </div>)
+        })() : (<>
+          <p className="text-[14px] text-mute mb-3">Pick a reason. Your streak stays safe, today won’t count as a miss, the gym reminder is paused, and today’s session moves to the next day.</p>
+          <div className="space-y-2" data-testid="skip-reasons">
+            {['Travelling', 'Not feeling well', 'Injury or sore', 'Busy day', 'Just resting'].map((r) => (
+              <button key={r} type="button" onClick={() => { if (previewSkip(person, pos.date, offDay, skipMap).asksOff) setOffAsk(r); else doSkip(r) }}
+                className="w-full min-h-[52px] px-4 rounded-2xl bg-s2 border border-line/60 text-left font-medium active:scale-[0.99]">{r}</button>))}
+          </div>
+        </>)}
       </Sheet>
       <Sheet open={pick} onClose={() => setPick(false)} title="Do a different session">
         <p className="text-[14px] text-mute mb-3">Pick any session from this week. The app records which one you did.</p>

@@ -14,7 +14,7 @@ export interface DayRow {
   /** Cardio timed outside a workout (a walk, a bike ride). */
   cardio?: CardioEntry[]
   /** "Not going to the gym today" (travelling, sick…). Keeps the streak and pauses the gym reminder. */
-  skip?: { reason: string }
+  skip?: { reason: string; /** Said yes to training on the weekly day off this week, so the shifted sessions use it. */ useOff?: boolean }
 }
 export interface CardioEntry { id: string; ex: string; sec: number }
 export interface Extra { id: string; label: string; kcal: number; protein: number }

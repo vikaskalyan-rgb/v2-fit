@@ -7,7 +7,7 @@ def check(n, ok, extra=''):
     if not ok: fails.append(n)
 SEED='''async ()=>{
   const today=new Date(Date.now()+330*60000).toISOString().slice(0,10)
-  const row={id:'vikas'+today+'x',person:'vikas',date:today,key:['sun','mon','tue','wed','thu','fri','sat'][new Date(Date.now()+330*60000).getUTCDay()],title:'Upper A',cycle:1,weekIndex:1,startedAt:1,finishedAt:2,volume:480,sets:{s1:[{w:60,r:8,done:true}],s2:[{w:20,r:10,done:true}]},exOf:{s1:'bb-bench-press',s2:'db-curl'},updatedAt:Date.now()}
+  const row={id:'vikas'+today+'x',person:'vikas',date:today,key:({sat:'fri',sun:'sat'})[['sun','mon','tue','wed','thu','fri','sat'][new Date(Date.now()+330*60000).getUTCDay()]]||['sun','mon','tue','wed','thu','fri','sat'][new Date(Date.now()+330*60000).getUTCDay()],title:'Upper A',cycle:1,weekIndex:1,startedAt:1,finishedAt:2,volume:480,sets:{s1:[{w:60,r:8,done:true}],s2:[{w:20,r:10,done:true}]},exOf:{s1:'bb-bench-press',s2:'db-curl'},updatedAt:Date.now()}
   const db=await new Promise((res,rej)=>{const q=indexedDB.open('v2fit');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})
   await new Promise((res,rej)=>{const tx=db.transaction('sessions','readwrite');tx.objectStore('sessions').put(row);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})
   return row.id

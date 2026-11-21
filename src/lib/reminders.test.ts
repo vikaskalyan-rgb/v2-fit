@@ -12,7 +12,14 @@ describe('reminders and skipped days', () => {
     const cut = buildItems('vikas', '2026-11-16', st, prof, {}, new Set([gymDate]))
     expect(cut.some((i) => i.date === gymDate && i.title === 'Gym in 15 minutes')).toBe(false)
     expect(cut.some((i) => i.date === gymDate && !!i.slot)).toBe(true)
-    expect(cut.length).toBe(all.length - 1)
+    // the skipped session isn't lost: it reappears on the next day instead
+    const nextDay = cut.find((i) => i.title === 'Gym in 15 minutes' && i.date === '2026-11-17')
+    expect(nextDay?.body).toBe(all.find((i) => i.title === 'Gym in 15 minutes' && i.date === gymDate)!.body)
+  })
+  it('a weekly day off has no gym nudge and Saturday carries the moved session', () => {
+    const all = buildItems('vikas', '2026-11-16', st, prof)
+    expect(all.some((i) => i.title === 'Gym in 15 minutes' && i.date === '2026-11-20')).toBe(false)
+    expect(all.find((i) => i.title === 'Gym in 15 minutes' && i.date === '2026-11-21')?.body).toMatch(/Lower B/)
   })
 })
 

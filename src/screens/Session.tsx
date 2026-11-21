@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Flame, Info, Pause, Play, Plus, Repeat, Share2, SkipForward, Star, Timer, Trash2, Trophy, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Flame, Info, Pause, Pencil, Play, Plus, Repeat, Share2, SkipForward, Star, Timer, Trash2, Trophy, X } from 'lucide-react'
 import type { MuscleId, SessionLog, Step } from '../types'
 import { NAME } from '../types'
 import { useStore, usePerson, type Active } from '../store'
@@ -402,7 +402,10 @@ function CardioBlock({ a, step }: { a: Active; step: Step }) {
   const st = a.cardio[step.id] ?? { startedAt: null, elapsed: 0, done: false }
   useTick(250, st.startedAt !== null)
   const iv = step.intervals
-  const total = iv ? iv.rounds * (iv.work + iv.easy) : (step.minutes ?? 10) * 60
+  const planMin = step.minutes ?? 10
+  const [editT, setEditT] = useState(false)
+  const tMin = a.cardioMin?.[step.id] ?? planMin
+  const total = iv ? iv.rounds * (iv.work + iv.easy) : tMin * 60
   const free = step.kind === 'cardio' && !iv   // plain cardio keeps counting past the target
   const raw = st.elapsed + (st.startedAt ? (Date.now() - st.startedAt) / 1000 : 0)
   const el = free ? raw : Math.min(total, raw)
@@ -433,6 +436,10 @@ function CardioBlock({ a, step }: { a: Active; step: Step }) {
         {guide && <div className="display text-[22px] font-semibold accent-text">{guide}</div>}
         <div className="display text-[64px] font-semibold num leading-none mt-1">{free ? mmss(el) : mmss(left)}</div>
         <div className="text-[12px] text-mute mt-1">{free ? (el >= total ? `Target ${mmss(total)} reached${el > total ? ` · +${mmss(el - total)}` : ''}` : `of ${mmss(total)} target`) : st.done ? 'Complete' : 'remaining'}</div>
+        {!iv && <>
+          <button type="button" data-testid="edit-target" onClick={() => setEditT((v) => !v)} className="mt-1 min-h-[36px] px-3 rounded-full text-[13px] font-medium accent-text inline-flex items-center gap-1.5"><Pencil size={13} /> {editT ? 'Done' : `Change target (${tMin} min)`}</button>
+          {editT && <div className="flex justify-center mt-1"><Stepper value={tMin} onChange={(v) => patch((x) => { x.cardioMin = { ...(x.cardioMin ?? {}), [step.id]: Math.max(1, Math.min(240, Math.round(v))) } })} step={5} min={1} max={240} unit="min" label="Target minutes" /></div>}
+        </>}
         <div className="flex justify-center gap-2 mt-4">
           <Btn onClick={toggle} disabled={st.done && !free}>{st.startedAt ? <><Pause size={18} /> Pause</> : <><Play size={18} /> {el > 0 ? 'Resume' : 'Start'}</>}</Btn>
           <Btn kind="soft" onClick={() => patch((x) => { x.cardio[step.id] = { startedAt: null, elapsed: el, done: free && st.startedAt ? true : !st.done } })}><Check size={18} /> {free && st.startedAt ? 'Stop' : st.done ? 'Undo' : 'Mark done'}</Btn>

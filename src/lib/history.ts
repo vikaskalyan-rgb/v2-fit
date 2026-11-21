@@ -28,13 +28,13 @@ export function allSets(sessions: SessionLog[], ex: string): { w: number; r: num
 
 const GYM_DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri'])
 /** Sessions in a row without missing a Mon–Fri gym day (today doesn't break it until it's over). */
-export function streak(sessions: SessionLog[], today: string, firstDay: string, skipped?: ReadonlySet<string>): number {
+export function streak(sessions: SessionLog[], today: string, firstDay: string, skipped?: ReadonlySet<string>, isGymDay?: (date: string) => boolean): number {
   const dates = new Set(sessions.filter((s) => s.finishedAt).map((s) => s.date))
   let n = 0
   for (let d = today, i = 0; i < 400 && d >= firstDay; d = addDays(d, -1), i++) {
     if (dates.has(d)) n++
     else if (skipped?.has(d)) continue          // marked "not going": neither counts nor breaks
-    else if (GYM_DAYS.has(weekdayOf(d)) && d !== today) break
+    else if ((isGymDay ? isGymDay(d) : GYM_DAYS.has(weekdayOf(d))) && d !== today) break
   }
   return n
 }

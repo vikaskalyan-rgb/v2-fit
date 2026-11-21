@@ -20,7 +20,7 @@ async def main():
         check('prompt opens from notification tap', await pg.get_by_test_id('meal-prompt').count()==1)
         check('url cleaned', 'meal=' not in pg.url, pg.url)
         await pg.screenshot(path='/home/claude/qa/97-prompt.png')
-        await pg.get_by_role('button',name='Ate it').click(); await pg.wait_for_timeout(600)
+        await pg.get_by_test_id('meal-prompt').get_by_role('button',name='Ate it').click(); await pg.wait_for_timeout(600)
         row=await pg.evaluate("""async (id)=>{const db=await new Promise(r=>{const q=indexedDB.open('v2fit');q.onsuccess=()=>r(q.result)});return await new Promise(r=>{const g=db.transaction('days').objectStore('days').get(id);g.onsuccess=()=>r(g.result)})}""", f'vikas|{today}')
         check('breakfast logged as eaten', bool(row and row['eaten'].get('breakfast')), row)
         # message path (app open, Android "Ate it" action)

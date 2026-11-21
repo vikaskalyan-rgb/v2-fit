@@ -149,4 +149,6 @@ export interface Profile {
   waterL?: number
   stepsTarget?: number
   proteinPerKg?: number
+  /** Weekly day off. Unset = the household default (Vikas: Friday); 'none' = no fixed day off. */
+  offDay?: Weekday | 'none'
 }

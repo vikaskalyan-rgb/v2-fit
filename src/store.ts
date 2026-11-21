@@ -28,6 +28,8 @@ export interface Active {
   cardio: Record<string, { startedAt: number | null; elapsed: number; done: boolean }>
   checks: Record<string, boolean>
   prs: string[]
+  /** Target minutes the person typed for a timed cardio step this session (overrides the plan's). */
+  cardioMin?: Record<string, number>
 }
 
 const blank = (sex: 'male' | 'female'): Profile => ({

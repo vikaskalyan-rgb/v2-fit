@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, CalendarPlus, Download, HardDriveDownload, Info, Pencil, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useStore, usePerson } from '../store'
-import { NAME } from '../types'
+import { NAME, WD_LABEL, WEEKDAYS, type Weekday } from '../types'
+import { offDayOf } from '../engine/schedule'
 import { DISCLAIMER } from '../data/common'
 import { EXERCISES, NO_MEDIA, exName } from '../data/exercises'
 import { loadManifest } from '../components/Media'
@@ -11,7 +12,7 @@ import { downloadICS } from '../lib/ics'
 import { fmtDate, programEnd, week1Start, weekdayOf } from '../engine/calendar'
 import { targets } from '../engine/nutrition'
 import { SyncPanel } from './SyncPanel'
-import { disableReminders, enableReminders, remindersOn, remindersSupported, sendTestReminder } from '../lib/reminders'
+import { disableReminders, enableReminders, remindersOn, remindersSupported, sendTestReminder, syncReminders } from '../lib/reminders'
 import { Btn, Card, Section, Segmented, Sheet, cx } from '../components/ui'
 
 const Row = ({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) => (
@@ -87,6 +88,8 @@ export function Settings() {
               <div className="text-[13px] text-mute num">BMR ≈ {t.bmr} · TDEE ≈ {t.tdee} · Target ≈ {t.kcal} kcal · Protein ≈ {t.protein} g{t.floored ? ' · at the 1,350 floor' : ''}</div>
               <Btn kind="soft" className="w-full mt-3" onClick={() => s.open({ type: 'profile', person })}>Edit stats, gym time and diet</Btn>
               <Row label="Diet" sub="Veg-only removes egg meals"><Segmented id="set-veg" small value={p.veg ? 'veg' : 'egg'} onChange={(v) => s.set((x) => { x.profiles[person].veg = v === 'veg' })} options={[{ value: 'egg', label: 'Eggetarian' }, { value: 'veg', label: 'Veg' }]} /></Row>
+              <Row label="Weekly day off" sub="Sessions re-flow around it (Lower B and Active recovery move one day later). Skipping a day pushes the rest of the week later."><select aria-label="Weekly day off" data-testid="off-day" value={offDayOf(person, p) ?? 'none'} onChange={(e) => { const v = e.target.value as Weekday | 'none'; s.set((x) => { x.profiles[person].offDay = v }); void syncReminders().catch(() => undefined); s.say(v === 'none' ? 'No fixed day off' : `${WD_LABEL[v]} is your day off`) }}
+                className="bg-s2 border border-line/60 rounded-xl px-3 min-h-[44px] text-[15px]"><option value="none">None</option>{WEEKDAYS.map((d) => <option key={d} value={d}>{WD_LABEL[d]}</option>)}</select></Row>
               {person === 'vikas' && <Row label="Trainer approved my squat form" sub="Switches Tuesday from goblet squat to back squat"><Toggle label="Squat approved" on={!!p.squatApproved} onChange={(v) => s.set((x) => { x.profiles.vikas.squatApproved = v })} /></Row>}
               <Row label="Units"><span className="text-mute">kg · cm</span></Row>
             </Card>
