@@ -9,9 +9,9 @@ import { cx } from './ui'
  * Custom SVG anatomy, front and back. Paths are drawn for the figure's left half (viewer's right)
  * on a 200 × 400 canvas and mirrored around x = 100. Region ids match the muscle vocabulary.
  */
-type Region = { id: MuscleId; d: string; center?: boolean }
+export type Region = { id: MuscleId; d: string; center?: boolean }
 
-const FRONT: Region[] = [
+export const FRONT: Region[] = [
   { id: 'upper-traps', d: 'M107 55 C111 62 119 66 130 69 L112 72 C109 68 107 62 107 55Z' },
   { id: 'front-delts', d: 'M128 70 C135 68 140 71 142 77 C143 86 140 95 134 100 C131 92 129 82 128 70Z' },
   { id: 'side-delts', d: 'M141 71 C149 73 153 83 152 97 C150 101 147 103 144 101 C146 91 146 80 141 71Z' },
@@ -31,7 +31,7 @@ const FRONT: Region[] = [
   { id: 'calves', d: 'M112 301 C118 297 126 299 130 305 C132 323 130 345 125 366 L117 366 C113 345 111 321 112 301Z' },
 ]
 
-const BACK: Region[] = [
+export const BACK: Region[] = [
   { id: 'upper-traps', d: 'M103 54 L107 54 C110 62 119 66 130 69 C122 72 112 75 103 77Z' },
   { id: 'mid-traps-rhomboids', d: 'M103 79 C112 77 120 75 127 73 C125 89 117 106 103 124Z' },
   { id: 'rear-delts', d: 'M128 70 C135 68 140 71 142 77 C143 86 140 95 134 100 C131 92 129 82 128 70Z' },
@@ -49,7 +49,7 @@ const BACK: Region[] = [
   { id: 'soleus', d: 'M114 344 C119 348 124 347 127 344 C127 356 125 365 123 373 L117 373 C115 364 114 354 114 344Z' },
 ]
 
-const BODY = [
+export const BODY = [
   'M100 56 L108 56 C110 64 120 68 132 69 C145 69 154 80 153 98 C155 118 155 138 153 148 C159 168 161 192 160 214 C162 223 161 233 157 239 C152 241 148 237 148 229 L149 214 C145 196 140 172 137 151 C135 134 133 116 133 104 C134 124 132 146 128 162 C127 174 129 184 132 196 C138 222 138 250 134 272 C132 284 131 292 132 300 C134 318 132 340 127 360 L125 376 C128 384 133 388 135 393 L114 393 C114 386 115 380 115 374 C111 350 109 322 111 300 C111 292 110 284 108 276 C104 256 101 232 100 208Z',
 ]
 

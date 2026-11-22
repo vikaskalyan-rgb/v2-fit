@@ -13,6 +13,10 @@ import { balanceTone, dayStats, narrate, rangeDates, summarize, type DayStat, ty
 import { Btn, Card, Section, Segmented, Sheet, Skeletons, cx } from '../components/ui'
 import { buildInsightsPdf } from '../lib/insightsPdf'
 import { saveBlob } from '../lib/share'
+import { buildWorkoutPdf } from '../lib/workoutPdf'
+import { buildReport } from '../lib/workoutReport'
+import { gymDayFn, offDayOf } from '../engine/schedule'
+import { useSkipMap } from '../lib/hooks'
 import type { SessionLog } from '../types'
 import { exName } from '../data/exercises'
 import { deloadAdvice, stalledLifts } from '../lib/plateau'
@@ -62,6 +66,8 @@ export function Insights() {
   const [dlOpen, setDlOpen] = useState(false)
   const [dlDays, setDlDays] = useState('30')
   const [dlBusy, setDlBusy] = useState(false)
+  const [dlKind, setDlKind] = useState<'workout' | 'health'>('workout')
+  const skipMap = useSkipMap(who)
   const [dlErr, setDlErr] = useState('')
   const a = useStats(who, n)
   const other = PEOPLE.find((p) => p !== who)!
@@ -80,6 +86,18 @@ export function Insights() {
     if (!pdata.days || !pdata.sessions || !pdata.weights || !dlValid) return
     setDlBusy(true); setDlErr('')
     try {
+      if (dlKind === 'workout') {
+        const t = istDate(), from = addDays(t, -(dlN - 1))
+        const wSorted = [...pdata.weights].sort((x, y) => x.date.localeCompare(y.date))
+        const kgOn = (date: string) => { let kg = profile.weightKg; for (const w of wSorted) { if (w.date <= date) kg = w.kg; else break } return kg }
+        const isGym = gymDayFn(who, offDayOf(who, profile), skipMap)
+        let planned = 0
+        for (let d = from; d <= t; d = addDays(d, 1)) if (d >= s.settings.programStart && isGym(d)) planned++
+        const report = buildReport({ person: who, sessions: pdata.sessions, days: pdata.days, from, to: t, kgOn, planned })
+        const blob = await buildWorkoutPdf({ name: NAME[who], goal: who === 'vikas' ? 'Lean bulk' : 'Fat loss and strength', report, generated: fmtDate(t, { day: 'numeric', month: 'short', year: 'numeric' }) })
+        await saveBlob(blob, `V2Fit-Workouts-${NAME[who]}-${t}-${dlN}d.pdf`)
+        setDlOpen(false); return
+      }
       const t = istDate(), stats = dayStats(who, rangeDates(t, dlN), pdata.days, pdata.sessions, pdata.weights, profile, s.settings)
       const sum = summarize(stats), tg = targets(who, profile), first = stats[0].date
       const blob = await buildInsightsPdf({
@@ -202,7 +220,11 @@ export function Insights() {
         </div>
       </div>
       <Sheet open={dlOpen} onClose={() => setDlOpen(false)} title="Download as PDF">
-        <p className="text-[14px] text-mute">{NAME[who]}'s insights for the last…</p>
+        <div className="grid grid-cols-2 gap-2 mb-4" role="radiogroup" aria-label="Report type">
+          {([['workout', 'Workout report'], ['health', 'Health insights']] as const).map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={dlKind === k} onClick={() => setDlKind(k)}
+            className={cx('min-h-[44px] rounded-xl border text-[14px] font-semibold', dlKind === k ? 'accent-grad text-[#08080c] border-transparent' : 'bg-s2 border-line/60 text-ink')}>{l}</button>)}
+        </div>
+        <p className="text-[14px] text-mute">{NAME[who]}'s {dlKind === 'workout' ? 'workouts' : 'insights'} for the last…</p>
         <div className="flex flex-wrap gap-2 mt-3" role="radiogroup" aria-label="Number of days">
           {PDF_DAYS.map((d) => <button key={d} type="button" role="radio" aria-checked={dlDays === String(d)} onClick={() => setDlDays(String(d))}
             className={cx('min-h-[44px] px-4 rounded-full border text-[14px] font-semibold', dlDays === String(d) ? 'accent-grad text-[#08080c] border-transparent' : 'bg-s2 border-line/60 text-ink')}>{d} days</button>)}
@@ -213,9 +235,9 @@ export function Insights() {
             className="w-20 min-h-[44px] rounded-xl bg-s2 border border-line/60 text-center display font-semibold text-[18px] outline-none" />
         </label>
         <p className="text-[12px] text-mute mt-2">1 to 365 days, counting back from today.{!dlValid && dlDays !== '' ? ' Enter a number between 1 and 365.' : ''}</p>
-        <p className="text-[12px] text-mute mt-1">Includes the summary, plain-words notes, calorie chart, week by week table, weight and a day-by-day log.</p>
+        <p className="text-[12px] text-mute mt-1">{dlKind === 'workout' ? 'Workouts only: muscle body maps, sets and counts per muscle, load charts, top lifts, and a card for each workout. Up to 5 pages, no food data.' : 'Includes the summary, plain-words notes, calorie chart, week by week table, weight and a day-by-day log.'}</p>
         {dlErr && <p role="alert" className="text-[13px] text-warn mt-2">{dlErr}</p>}
-        <Btn className="w-full mt-4" disabled={dlBusy || !dlValid || !pdata.days} onClick={download}><Download size={18} /> {dlBusy ? 'Making PDF…' : `Download ${dlValid ? dlN : ''}-day PDF`}</Btn>
+        <Btn className="w-full mt-4" disabled={dlBusy || !dlValid || !pdata.days} onClick={download}><Download size={18} /> {dlBusy ? 'Making PDF…' : `Download ${dlValid ? dlN : ''}-day ${dlKind === 'workout' ? 'workout report' : 'PDF'}`}</Btn>
       </Sheet>
     </motion.div>
   )
