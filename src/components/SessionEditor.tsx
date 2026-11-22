@@ -1,3 +1,4 @@
+import { isEach } from '../engine/progression'
 import { useEffect, useState } from 'react'
 import { Check, Plus } from 'lucide-react'
 import { db, useLive } from '../db'
@@ -12,7 +13,7 @@ const wStep = (t?: string) => (t === 'db' ? 1 : t === 'machine' || t === 'assist
 const volumeOf = (log: Pick<SessionLog, 'sets' | 'exOf'>) => Object.entries(log.sets).reduce((v, [id, rows]) => {
   const t = EX[log.exOf[id]]?.loadType
   if (!t || loadless(t) || t === 'assist') return v
-  return v + rows.filter((r) => r.done).reduce((x, r) => x + r.w * r.r * (t === 'db' ? 2 : 1), 0)
+  return v + rows.filter((r) => r.done).reduce((x, r) => x + r.w * r.r * (isEach(t, log.exOf[id]) ? 2 : 1), 0)
 }, 0)
 
 /** Fix the numbers of a finished workout: weights (decimals allowed), reps, done ticks and cardio minutes. */
@@ -53,7 +54,7 @@ export function SessionEditor({ id, onClose }: { id: string | null; onClose: () 
                   {rows.map((r, i) => (
                     <div key={i} className={cx('flex items-center gap-1 rounded-2xl bg-s2 border border-line/60 px-2 py-1.5', !r.done && 'opacity-60')}>
                       <span className="w-5 text-[13px] text-mute text-center">{i + 1}</span>
-                      {!loadless(ex.loadType) && <Stepper value={r.w} onChange={(v) => edit(sid, i, { w: v })} step={wStep(ex.loadType)} unit={ex.loadType === 'db' ? 'kg each' : 'kg'} label={`${ex.name} set ${i + 1} weight`} tight />}
+                      {!loadless(ex.loadType) && <Stepper value={r.w} onChange={(v) => edit(sid, i, { w: v })} step={wStep(ex.loadType)} unit={isEach(ex.loadType, ex.id) ? 'kg each' : 'kg'} label={`${ex.name} set ${i + 1} weight`} tight />}
                       <Stepper value={r.r} onChange={(v) => edit(sid, i, { r: v })} step={hold ? 5 : 1} unit={hold ? 'sec' : 'reps'} label={`${ex.name} set ${i + 1} ${hold ? 'seconds' : 'reps'}`} tight />
                       <button type="button" aria-label={`Set ${i + 1} ${r.done ? 'done' : 'not done'}`} aria-pressed={r.done} onClick={() => edit(sid, i, { done: !r.done })}
                         className={cx('ml-auto w-10 h-12 rounded-xl grid place-items-center border', r.done ? 'accent-grad text-black border-transparent' : 'bg-s1 border-line/70 text-mute')}><Check size={18} /></button>

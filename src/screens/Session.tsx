@@ -9,7 +9,7 @@ import { EX, exName } from '../data/exercises'
 import { COOLDOWN, COOLDOWN_HOLD, DAY0, FIRST_TIME, RIR_EXPLAIN, ROUTINE_ID, SAFETY, WARMUP, WEEK1_BANNER } from '../data/common'
 import { resolveActive } from '../lib/session'
 import { restText, rxText, sessionMuscles } from '../engine/program'
-import { isPR, lastLine, rampSets, suggest, type Past, type Suggestion } from '../engine/progression'
+import { isEach, isPR, lastLine, rampSets, suggest, type Past, type Suggestion } from '../engine/progression'
 import { allSets, pastByExercise } from '../lib/history'
 import { useSessions, useTick } from '../lib/hooks'
 import { chime, keepAwake } from '../lib/audio'
@@ -252,7 +252,7 @@ function Work({ a, kind, steps, rir, modName, past, prior, loading }: { a: Activ
   const removeSet = () => patch((x) => { const cur = x.sets[step.id] ?? []; if (cur.length > 1 && !cur[cur.length - 1].done) x.sets[step.id] = cur.slice(0, -1) })
   const edit = (i: number, k: 'w' | 'r', v: number) => patch((x) => { x.sets[step.id][i][k] = v })
 
-  const unit = ex?.loadType === 'assist' ? 'assist kg' : ex?.loadType === 'db' ? 'kg each' : 'kg'
+  const unit = ex?.loadType === 'assist' ? 'assist kg' : isEach(ex?.loadType, ex?.id) ? 'kg each' : 'kg'
   const wStep = ex?.loadType === 'db' ? 1 : ex?.loadType === 'machine' || ex?.loadType === 'assist' ? 5 : 2.5
 
   return (
@@ -561,7 +561,7 @@ function Finish({ a, steps, onDone }: { a: Active; steps: Step[]; onDone: () => 
   const volume = Math.round(steps.reduce((v, s) => {
     const t = EX[s.ex]?.loadType
     if (!t || isLoadless(t) || t === 'assist') return v
-    return v + (a.sets[s.id] ?? []).filter((r) => r.done).reduce((x, r) => x + r.w * r.r * (t === 'db' ? 2 : 1) * (s.perSide && t !== 'db' ? 2 : 1), 0)
+    return v + (a.sets[s.id] ?? []).filter((r) => r.done).reduce((x, r) => x + r.w * r.r * (isEach(t, s.ex) ? 2 : 1) * (s.perSide && !isEach(t, s.ex) ? 2 : 1), 0)
   }, 0))
   const m = sessionMuscles(doneSteps)
   const cardioSec = steps.filter((x) => x.kind === 'cardio').reduce((n, x) => { const c = a.cardio[x.id]; return n + (c ? c.elapsed + (c.startedAt ? (endRef.current - c.startedAt) / 1000 : 0) : 0) }, 0)

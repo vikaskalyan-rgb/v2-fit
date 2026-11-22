@@ -15,6 +15,7 @@ async def main():
         await pg.get_by_text('Start as Vikas').click(); await pg.get_by_text('Build my plan').click(); await pg.wait_for_timeout(700)
         await pg.get_by_role('button',name='Got it').click(); await pg.wait_for_timeout(600)
         await pg.get_by_role('button',name='I’m Vikas').click(); await pg.wait_for_timeout(600)
+        await pg.goto(URL+'/?simulate=2026-11-16T07:30'); await pg.wait_for_timeout(1500)
         await pg.get_by_role('button',name='Start',exact=True).click(); await pg.wait_for_timeout(1500)
         await pg.get_by_role('button',name=re.compile('Start lifting')).click(); await pg.wait_for_timeout(1200)
         check('session open', await pg.get_by_text(re.compile('^Next:')).count()>=1)

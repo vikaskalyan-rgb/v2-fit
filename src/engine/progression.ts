@@ -2,7 +2,10 @@ import type { LoadType } from '../types'
 
 /** One past session of an exercise: the load used and the reps (or seconds) achieved per set. */
 export interface Past { w: number; reps: number[] }
-export interface Rx { reps?: [number, number]; hold?: [number, number]; sets: number }
+export interface Rx { reps?: [number, number]; hold?: [number, number]; sets: number; ex?: string }
+/** Weight is entered per side / per hand (plates on each side of the leg press), so volume counts it twice. */
+const EACH = new Set(['leg-press'])
+export const isEach = (type: LoadType | undefined, ex?: string) => type === 'db' || (!!ex && EACH.has(ex))
 export interface Suggestion {
   kind: 'first' | 'up' | 'stay' | 'down' | 'reset' | 'hold-up'
   weight: number | null
@@ -14,13 +17,14 @@ const round = (x: number, step: number) => Math.round(x / step) * step
 export const stepFor = (t: LoadType, w = 0): number =>
   t === 'bb-upper' ? 2.5 : t === 'bb-lower' ? 5 : t === 'db' ? (w >= 10 ? 2 : 1) : t === 'machine' ? 5 : t === 'assist' ? 5 : 0
 const fmt = (n: number) => `${Math.round(n * 100) / 100}`.replace(/\.0+$/, '')
-const unit = (t: LoadType) => (t === 'db' ? ' kg each' : t === 'assist' ? ' kg assist' : ' kg')
+const unit = (t: LoadType, each = false) => (each || t === 'db' ? ' kg each' : t === 'assist' ? ' kg assist' : ' kg')
 
 /**
  * Double progression (Section 3).
  * history[0] is the most recent session. `reset` = Reset week (~90% of last loads).
  */
 export function suggest(history: Past[], rx: Rx, type: LoadType, opts: { reset?: boolean } = {}): Suggestion {
+  const each = isEach(type, rx.ex)
   const last = history[0]
   if (!last || !last.reps.length) return { kind: 'first', weight: null, text: 'Pick a weight you could lift ~15 times, then do 10.' }
 
@@ -48,7 +52,7 @@ export function suggest(history: Past[], rx: Rx, type: LoadType, opts: { reset?:
   if (opts.reset && w > 0) {
     const step = type === 'machine' || type === 'assist' ? 5 : type === 'db' ? 1 : 2.5
     const rw = type === 'assist' ? round(w * 1.1, step) : Math.max(step, round(w * 0.9, step))
-    return { kind: 'reset', weight: rw, text: `Reset week — ${fmt(rw)}${unit(type)} (≈90%)`, targets: Array(rx.sets).fill(lo) }
+    return { kind: 'reset', weight: rw, text: `Reset week — ${fmt(rw)}${unit(type, each)} (≈90%)`, targets: Array(rx.sets).fill(lo) }
   }
 
   if (allTop) {
@@ -57,7 +61,7 @@ export function suggest(history: Past[], rx: Rx, type: LoadType, opts: { reset?:
       return { kind: 'up', weight: nw, text: nw === 0 ? '↑ Try it with no assistance today' : `↑ Drop assistance to ${fmt(nw)} kg`, targets: Array(rx.sets).fill(lo) }
     }
     const nw = w + stepFor(type, w)
-    const text = type === 'machine' ? `↑ Go up 1 pin (≈${fmt(nw)} kg) today` : `↑ Try ${fmt(nw)}${unit(type)} today`
+    const text = type === 'machine' ? `↑ Go up 1 pin (≈${fmt(nw)} kg) today` : `↑ Try ${fmt(nw)}${unit(type, each)} today`
     return { kind: 'up', weight: nw, text, targets: Array(rx.sets).fill(lo) }
   }
 
@@ -68,11 +72,11 @@ export function suggest(history: Past[], rx: Rx, type: LoadType, opts: { reset?:
     }
     const step = type === 'machine' ? 5 : type === 'db' ? 1 : 2.5
     const nw = Math.max(step, round(w * 0.9, step))
-    return { kind: 'down', weight: nw, text: `↓ Drop to ${fmt(nw)}${unit(type)} (−10%) and rebuild`, targets: Array(rx.sets).fill(hi) }
+    return { kind: 'down', weight: nw, text: `↓ Drop to ${fmt(nw)}${unit(type, each)} (−10%) and rebuild`, targets: Array(rx.sets).fill(hi) }
   }
 
   const t = aim(last.reps)
-  return { kind: 'stay', weight: w, text: `Stay at ${fmt(w)}${unit(type)} — aim for ${t.join(' · ')}`, targets: t }
+  return { kind: 'stay', weight: w, text: `Stay at ${fmt(w)}${unit(type, each)} — aim for ${t.join(' · ')}`, targets: t }
 }
 
 export const lastLine = (p: Past | undefined, isHold = false): string =>
