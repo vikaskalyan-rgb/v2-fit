@@ -60,7 +60,8 @@ export function dayStats(person: Person, dates: string[], days: DayRow[], sessio
     const kg = kgOn(date)
     const { kcal, protein } = intakeOn(person, row, profile, st)
     const ss = sessBy.get(date) ?? []
-    const workoutBurn = ss.reduce((n, s) => n + sessionBurn(person, s, kg), 0)
+    const cardioSec = (row?.cardio ?? []).reduce((n, e) => n + e.sec, 0)   // timed cardio logged on its own, outside a workout
+    const workoutBurn = ss.reduce((n, s) => n + sessionBurn(person, s, kg), 0) + Math.round((MET_CARDIO - 1) * kg * (cardioSec / 3600))
     const steps = row?.steps ?? 0
     const stepBurn = Math.round(steps * KCAL_PER_STEP_PER_KG * kg)
     const base = Math.round(bmr({ ...profile, weightKg: kg }) * BASE_FACTOR)

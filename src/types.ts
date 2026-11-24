@@ -60,7 +60,7 @@ export interface SessionDef {
   title: string
   subtitle?: string
   minutes: number
-  kind: 'upper' | 'lower' | 'cardio' | 'full' | 'active' | 'rest' | 'day0'
+  kind: 'upper' | 'lower' | 'cardio' | 'full' | 'active' | 'rest' | 'day0' | 'core'
   blocks: Block[]
   note?: string
 }
@@ -144,6 +144,10 @@ export interface Profile {
   lastAdjust?: string
   adjustReason?: string
   squatApproved?: boolean
+  /** A separate daily Core & Abs session. Unset = on for Vikas, off for Varsha. */
+  dailyCore?: boolean
+  /** Daily cardio target in minutes (0 = off). Unset = 30 for Vikas, 0 for Varsha. */
+  cardioDaily?: number
   onboarded: boolean
   /** Editable targets (fall back to the coach's defaults when unset) */
   waterL?: number

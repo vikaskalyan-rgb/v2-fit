@@ -30,7 +30,7 @@ export function SessionScreen() {
   const active = useStore((s) => s.active[person])
   const profile = useStore((s) => s.profiles[person])
   const open = useStore((s) => s.open)
-  const sessions = useSessions()
+  const sessions = useSessions(undefined, true)
 
   useEffect(() => {
     void keepAwake(true)
@@ -274,7 +274,7 @@ function Work({ a, kind, steps, rir, modName, past, prior, loading }: { a: Activ
         <AnimatePresence mode="wait">
           <motion.div key={step.id + step.ex} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }}
             onPanEnd={(_, i) => { if (Math.abs(i.offset.x) > 80 && Math.abs(i.offset.y) < 60) go(idx + (i.offset.x < 0 ? 1 : -1)) }}>
-            {a.weekIndex === 1 && a.cycle === 1 && !a.isDay0 && idx === 0 && <div className="rounded-2xl border border-warn/30 bg-warn/10 text-warn text-[13px] px-3 py-2 mb-2">{WEEK1_BANNER}</div>}
+            {a.weekIndex === 1 && a.cycle === 1 && !a.isDay0 && a.key !== 'core' && idx === 0 && <div className="rounded-2xl border border-warn/30 bg-warn/10 text-warn text-[13px] px-3 py-2 mb-2">{WEEK1_BANNER}</div>}
             {step.kind === 'lift' && ex ? (
               <>
                 <ExerciseMedia ex={ex} person={person} />
@@ -359,7 +359,7 @@ function Work({ a, kind, steps, rir, modName, past, prior, loading }: { a: Activ
         <div className="flex items-center gap-2 py-2">
           <button type="button" aria-label="Previous exercise" disabled={idx === 0} onClick={() => go(idx - 1)} className="w-12 h-12 grid place-items-center rounded-2xl bg-s2 border border-line/60 disabled:opacity-30"><ArrowLeft size={20} /></button>
           {allDone || idx === steps.length - 1
-            ? <Btn className="flex-1" onClick={() => patch((x) => { x.phase = a.isDay0 ? 'finish' : 'cooldown'; x.rest = null })}>{allDone ? 'Finish session' : 'Finish early'} <ArrowRight size={18} /></Btn>
+            ? <Btn className="flex-1" onClick={() => patch((x) => { x.phase = a.isDay0 || a.key === 'core' ? 'finish' : 'cooldown'; x.rest = null })}>{allDone ? 'Finish session' : 'Finish early'} <ArrowRight size={18} /></Btn>
             : <Btn kind="soft" className="flex-1" onClick={() => go(idx + 1)}>Next: {steps[idx + 1].kind === 'lift' ? exName(steps[idx + 1].ex) : steps[idx + 1].label} <ArrowRight size={16} /></Btn>}
         </div>
       </div>

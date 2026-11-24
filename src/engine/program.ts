@@ -3,6 +3,7 @@ import { WEEK_MODS } from '../data/common'
 import { vikasProgram } from '../data/program.vikas'
 import { varshaProgram } from '../data/program.varsha'
 import { EX } from '../data/exercises'
+import { CORE_KEY, CORE_MINUTES, CORE_TITLE, coreBlocks } from '../data/core'
 
 /** The coach's plan, never mutated. */
 export const DEFAULT_PROGRAMS: Record<Person, ProgramDef> = { vikas: vikasProgram, varsha: varshaProgram }
@@ -87,6 +88,14 @@ export function resolveSession(person: Person, weekIndex: number, weekday: Weekd
   const def = PROGRAMS[person].days[weekday]
   const blocks = monthBlocks(person, month, weekday)
   return { def: { ...def, blocks }, steps: toSteps(blocks, mod, weekInMonth, flags), mod, month, weekInMonth }
+}
+
+export function resolveCore(weekIndex: number): Resolved {
+  const month = Math.ceil(weekIndex / 4)
+  const weekInMonth = ((weekIndex - 1) % 4) + 1
+  const blocks = coreBlocks(month)
+  const def: SessionDef = { key: CORE_KEY, title: CORE_TITLE, subtitle: 'Daily, separate from your lifting', minutes: CORE_MINUTES, kind: 'core', blocks }
+  return { def, steps: toSteps(blocks, null, weekInMonth), mod: { name: 'Build', rir: '1–2', hint: 'Slow and controlled. Exhale as you curl. Stop a rep or two before form breaks.' }, month, weekInMonth }
 }
 
 export function resolveDay0(person: Person): Resolved {

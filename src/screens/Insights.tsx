@@ -29,7 +29,7 @@ const axis = { fill: 'rgb(var(--mute))', fontSize: 11 }
 
 function usePersonData(person: Person) {
   const days = useLive<DayRow[] | undefined>(() => db.days.where('person').equals(person).toArray(), [person], undefined)
-  const sessions = useLive<SessionLog[] | undefined>(() => db.sessions.where('person').equals(person).toArray(), [person], undefined)
+  const sessions = useLive<SessionLog[] | undefined>(async () => (await db.sessions.where('person').equals(person).toArray()).filter((s) => s.key !== 'core'), [person], undefined)
   const weights = useLive<WeightRow[] | undefined>(() => db.weights.where('person').equals(person).toArray(), [person], undefined)
   return { days, sessions, weights }
 }

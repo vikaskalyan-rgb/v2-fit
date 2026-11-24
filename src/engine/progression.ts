@@ -26,7 +26,11 @@ const unit = (t: LoadType, each = false) => (each || t === 'db' ? ' kg each' : t
 export function suggest(history: Past[], rx: Rx, type: LoadType, opts: { reset?: boolean } = {}): Suggestion {
   const each = isEach(type, rx.ex)
   const last = history[0]
-  if (!last || !last.reps.length) return { kind: 'first', weight: null, text: 'Pick a weight you could lift ~15 times, then do 10.' }
+  if (!last || !last.reps.length) {
+    if (rx.hold) return { kind: 'first', weight: null, text: `Hold ${rx.hold[1]} s with good form. Stop when your hips sag.` }
+    if (type === 'bw') return { kind: 'first', weight: null, text: `Aim for ${rx.reps?.[0] ?? 10}–${rx.reps?.[1] ?? 12} clean reps. Slow and controlled.` }
+    return { kind: 'first', weight: null, text: 'Pick a weight you could lift ~15 times, then do 10.' }
+  }
 
   if (rx.hold) {
     const [, hi] = rx.hold

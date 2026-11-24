@@ -22,10 +22,11 @@ export function usePosition(): Position {
   const date = istDate(d)
   return useMemo(() => position(date, start, merge), [date, start, merge])
 }
-export function useSessions(person?: Person): SessionLog[] | undefined {
+/** Finished and unfinished logs for one person. The daily Core & Abs logs are left out unless asked for, so they never count as a weekly workout. */
+export function useSessions(person?: Person, withCore = false): SessionLog[] | undefined {
   const me = usePerson()
   const p = person ?? me
-  return useLive<SessionLog[] | undefined>(() => db.sessions.where('person').equals(p).sortBy('date'), [p], undefined)
+  return useLive<SessionLog[] | undefined>(async () => (await db.sessions.where('person').equals(p).sortBy('date')).filter((s) => withCore || s.key !== 'core'), [p, withCore], undefined)
 }
 /** Dates this person marked as "not going to the gym". */
 export function useSkips(person?: Person): ReadonlySet<string> {

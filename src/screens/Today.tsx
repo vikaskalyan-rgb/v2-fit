@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ArrowRight, CalendarOff, Check, Pencil, Clock, Droplets, Dumbbell, Flame, Footprints, Moon, Play, Shuffle, Sparkles, Utensils, Wind } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarOff, Check, Pencil, Clock, Droplets, Dumbbell, Flame, Footprints, Moon, Play, Timer, Shuffle, Sparkles, Utensils, Wind } from 'lucide-react'
 import { useStore, usePerson, useWeightHidden } from '../store'
 import { NAME, PEOPLE, WD_LABEL, WEEKDAYS, type Person, type Weekday } from '../types'
 import { db, dayId, patchDay, setWeight, useLive, type DayRow } from '../db'
@@ -9,7 +9,11 @@ import { describeMoves, gymDayFn, offDayOf, previewSkip, weekPlan, weekStartOf }
 import { syncReminders } from '../lib/reminders'
 import { SessionEditor } from '../components/SessionEditor'
 import { RoutineSheet, type Routine } from '../components/RoutineSheet'
-import { startSession, todayPlan } from '../lib/session'
+import { startCore, startSession, todayPlan } from '../lib/session'
+import { cardioTarget, coreOn } from '../data/core'
+import { cardioTotals, fmtDuration } from '../lib/cardio'
+import { CardioTimer } from '../components/CardioTimer'
+import { exName } from '../data/exercises'
 import { PROGRAMS, resolveSession, sessionMuscles } from '../engine/program'
 import { addDays, fmtDate, greeting, istClock, istLong, istMinutes, week1Start } from '../engine/calendar'
 import { streak, weekKeys, otherPerson } from '../lib/history'
@@ -69,9 +73,19 @@ export function Today() {
   const lastRoutine = useRef<Routine>('warm')
   if (routine) lastRoutine.current = routine
   const [stepsOpen, setStepsOpen] = useState(false)
+  const [cardioOpen, setCardioOpen] = useState(false)
+  const [cardioEx, setCardioEx] = useState('incline-walk')
   const [kg, setKg] = useState(profile.weightKg)
   const todayW = useLive(() => db.weights.get(dayId(person, pos.date)), [person, pos.date], undefined)
   useEffect(() => { setKg(todayW?.kg ?? profile.weightKg) }, [todayW?.kg, profile.weightKg, person])
+
+  const coreLog = useLive(() => db.sessions.get(`${person}|${pos.date}|core`), [person, pos.date], undefined)
+  const coreDone = !!coreLog?.finishedAt
+  const coreActive = active?.key === 'core'
+  const showCore = coreOn(person, profile) && (pos.phase === 'program' || pos.phase === 'day0')
+  const cTarget = cardioTarget(person, profile)
+  const cardioSec = cardioTotals(sessions ?? [], [day], pos.date, pos.date).seconds
+  const addCardio = (min: number) => { void patchDay(person, pos.date, (x) => { x.cardio = [...(x.cardio ?? []), { id: `${Date.now()}`, ex: cardioEx, sec: min * 60 }] }); say(`${min} min of ${exName(cardioEx).toLowerCase()} added`) }
 
   const offDay = offDayOf(person, profile)
   const sched = useMemo(() => (pos.phase === 'program' ? weekPlan(person, weekStartOf(pos.date), offDay, skipMap) : null), [person, pos.date, pos.phase, offDay, skipMap])
@@ -219,6 +233,32 @@ export function Today() {
           <div className="flex-1 text-[14px]"><span className="font-semibold">Missed: {WD_LABEL[missed.wd]} {missed.title}</span> — do it today?</div>
           <Btn kind="soft" onClick={() => begin(missed.wd)}>Do it</Btn></div></Card></motion.div>}
 
+      {showCore && <motion.div variants={item}><Card className="mt-3" data-testid="core-card">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-a1/15 accent-text grid place-items-center shrink-0"><Flame size={22} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] uppercase tracking-widest text-mute font-semibold">Every day</div>
+            <div className="display text-[20px] font-semibold leading-tight">Core &amp; Abs</div>
+            <div className="text-[13px] text-mute">5 moves · about 15 min · separate from your lifting</div>
+          </div>
+          {coreDone ? <Chip tone="ok"><Check size={13} /> Done</Chip>
+            : <Btn disabled={!!active && !coreActive} onClick={() => (coreActive ? open({ type: 'session' }) : startCore(person, pos))}><Play size={18} /> {coreActive ? 'Resume' : 'Start'}</Btn>}
+        </div>
+        {!coreDone && !!active && !coreActive && <p className="text-[12px] text-mute mt-2">Finish your workout first, then do your abs.</p>}
+      </Card></motion.div>}
+
+      {cTarget > 0 && <motion.div variants={item}><Card className="mt-3" data-testid="cardio-card">
+        <div className="flex items-center gap-3">
+          <Ring value={cardioSec / (cTarget * 60)} size={52} stroke={6}><span className="accent-text"><Timer size={18} /></span></Ring>
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] uppercase tracking-widest text-mute font-semibold">Daily cardio</div>
+            <div className="display text-[20px] font-semibold leading-tight num">{Math.floor(cardioSec / 60)} <span className="text-mute text-[15px] font-medium">of {cTarget} min</span></div>
+            <div className="text-[13px] text-mute">{cardioSec >= cTarget * 60 ? 'Target reached' : `${fmtDuration(cTarget * 60 - cardioSec)} to go`}</div>
+          </div>
+          <Btn kind={cardioSec >= cTarget * 60 ? 'soft' : 'primary'} onClick={() => setCardioOpen(true)}>{cardioSec > 0 ? 'Add' : 'Start'}</Btn>
+        </div>
+      </Card></motion.div>}
+
       {/* Rings */}
       <motion.div variants={item} className="grid grid-cols-4 gap-2 mt-4">
         {[
@@ -298,6 +338,18 @@ export function Today() {
             </button>)
         })}</div>
       </Sheet>
+      <Sheet open={cardioOpen} onClose={() => setCardioOpen(false)} title="Daily cardio">
+        <p className="text-[14px] text-mute">Time it live, or add what you already did. Target: {cTarget} min a day.</p>
+        <div className="flex gap-2 mt-3" role="radiogroup" aria-label="Machine">
+          {['incline-walk', 'bike', 'elliptical'].map((e) => <button key={e} type="button" role="radio" aria-checked={cardioEx === e} onClick={() => setCardioEx(e)}
+            className={cx('flex-1 min-h-[44px] rounded-full border text-[13px] font-semibold px-2', cardioEx === e ? 'accent-grad text-[#08080c] border-transparent' : 'bg-s2 border-line/60 text-ink')}>{e === 'incline-walk' ? 'Treadmill' : exName(e).replace('Stationary ', '')}</button>)}
+        </div>
+        <div className="flex gap-2 mt-3" data-testid="cardio-quick">
+          {[10, 15, 30].map((m) => <Btn key={m} kind="soft" className="flex-1" onClick={() => addCardio(m)}>+{m} min</Btn>)}
+        </div>
+        <CardioTimer ex={cardioEx} />
+        <Btn className="w-full mt-4" onClick={() => setCardioOpen(false)}>Done</Btn>
+      </Sheet>
       <Sheet open={stepsOpen} onClose={() => setStepsOpen(false)} title="Steps today">
         <p className="text-[14px] text-mute mb-3">Type the number from your phone’s Health app. Target: {person === 'vikas' ? '7–8k' : '9–10k'} a day.</p>
         <div className="flex justify-center"><Stepper value={day.steps} onChange={(v) => void patchDay(person, pos.date, (x) => { x.steps = v })} step={500} max={60000} unit="steps" label="Steps" big /></div>
@@ -314,9 +366,9 @@ function Together() {
   const actives = useStore((s) => s.active)
   const avatars = useStore((s) => s.avatars)
   const { setPerson, open } = useStore.getState()
-  const todays = useLive(() => db.sessions.where('date').equals(pos.date).toArray(), [pos.date], [])
+  const todays = useLive(async () => (await db.sessions.where('date').equals(pos.date).toArray()).filter((s) => s.key !== 'core'), [pos.date], [])
   const weekStart = addDays(pos.date, -WEEKDAYS.indexOf(pos.weekday))
-  const weekSessions = useLive(() => db.sessions.where('date').between(weekStart, pos.date, true, true).toArray(), [weekStart, pos.date], [])
+  const weekSessions = useLive(async () => (await db.sessions.where('date').between(weekStart, pos.date, true, true).toArray()).filter((s) => s.key !== 'core'), [weekStart, pos.date], [])
   const bothDays = (() => {
     const by: Record<string, Set<string>> = {}
     for (const x of weekSessions) if (x.finishedAt) (by[x.date] ??= new Set()).add(x.person)

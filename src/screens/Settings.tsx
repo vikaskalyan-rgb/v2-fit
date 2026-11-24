@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, CalendarPlus, Download, HardDriveDownload, Info, Pencil, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useStore, usePerson } from '../store'
 import { NAME, WD_LABEL, WEEKDAYS, type Weekday } from '../types'
+import { cardioTarget, coreOn } from '../data/core'
 import { offDayOf } from '../engine/schedule'
 import { DISCLAIMER } from '../data/common'
 import { EXERCISES, NO_MEDIA, exName } from '../data/exercises'
@@ -90,6 +91,9 @@ export function Settings() {
               <Row label="Diet" sub="Veg-only removes egg meals"><Segmented id="set-veg" small value={p.veg ? 'veg' : 'egg'} onChange={(v) => s.set((x) => { x.profiles[person].veg = v === 'veg' })} options={[{ value: 'egg', label: 'Eggetarian' }, { value: 'veg', label: 'Veg' }]} /></Row>
               <Row label="Weekly day off" sub="Sessions re-flow around it (Lower B and Active recovery move one day later). Skipping a day pushes the rest of the week later."><select aria-label="Weekly day off" data-testid="off-day" value={offDayOf(person, p) ?? 'none'} onChange={(e) => { const v = e.target.value as Weekday | 'none'; s.set((x) => { x.profiles[person].offDay = v }); void syncReminders().catch(() => undefined); s.say(v === 'none' ? 'No fixed day off' : `${WD_LABEL[v]} is your day off`) }}
                 className="bg-s2 border border-line/60 rounded-xl px-3 min-h-[44px] text-[15px]"><option value="none">None</option>{WEEKDAYS.map((d) => <option key={d} value={d}>{WD_LABEL[d]}</option>)}</select></Row>
+              <Row label="Daily Core & Abs session" sub="A separate 5-move session every day, apart from your lifting."><Toggle label="Daily Core and Abs" on={coreOn(person, p)} onChange={(v) => s.set((x) => { x.profiles[person].dailyCore = v })} /></Row>
+              <Row label="Daily cardio target" sub="Minutes a day. Shows a progress ring on Today."><select aria-label="Daily cardio minutes" data-testid="cardio-daily" value={cardioTarget(person, p)} onChange={(e) => s.set((x) => { x.profiles[person].cardioDaily = Number(e.target.value) })}
+                className="bg-s2 border border-line/60 rounded-xl px-3 min-h-[44px] text-[15px]">{[0, 15, 20, 30, 40, 45, 60].map((m) => <option key={m} value={m}>{m === 0 ? 'Off' : `${m} min`}</option>)}</select></Row>
               {person === 'vikas' && <Row label="Trainer approved my squat form" sub="Switches Tuesday from goblet squat to back squat"><Toggle label="Squat approved" on={!!p.squatApproved} onChange={(v) => s.set((x) => { x.profiles.vikas.squatApproved = v })} /></Row>}
               <Row label="Units"><span className="text-mute">kg · cm</span></Row>
             </Card>

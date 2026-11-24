@@ -70,7 +70,7 @@ export function Library() {
 export function ExerciseDetail({ id }: { id: string }) {
   const person = usePerson()
   const open = useStore((s) => s.open)
-  const sessions = useSessions()
+  const sessions = useSessions(undefined, true)
   const e = EX[id]
   const past = useMemo(() => pastByExercise(sessions ?? [])[id]?.[0], [sessions, id])
   if (!e) return null
