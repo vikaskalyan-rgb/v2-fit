@@ -10,6 +10,7 @@ import { EXERCISES, NO_MEDIA, exName } from '../data/exercises'
 import { loadManifest } from '../components/Media'
 import { downloadBackup, importAll, resetAll } from '../lib/backup'
 import { downloadICS } from '../lib/ics'
+import { checkForUpdate, forceRefresh } from '../lib/updateApp'
 import { fmtDate, programEnd, week1Start, weekdayOf } from '../engine/calendar'
 import { targets } from '../engine/nutrition'
 import { SyncPanel } from './SyncPanel'
@@ -38,6 +39,7 @@ export function Settings() {
   const [photos, setPhotos] = useState(false)
   const [rem, setRem] = useState(remindersOn())
   const [remBusy, setRemBusy] = useState(false)
+  const [upBusy, setUpBusy] = useState(false)
   const toggleRem = async (on: boolean) => {
     setRemBusy(true)
     try { if (on) { await enableReminders(); setRem(true); s.say('Reminders on for this phone') } else { await disableReminders(); setRem(false) } }
@@ -120,6 +122,17 @@ export function Settings() {
               <Row label="Sounds" sub="Rest-timer chimes. iPhones don’t vibrate for web apps."><Toggle label="Sounds" on={s.settings.sounds} onChange={(v) => s.set((x) => { x.settings.sounds = v })} /></Row>
               <Row label="Creatine reminder" sub="3–5 g/day, optional"><Toggle label="Supplements" on={s.settings.creatine} onChange={(v) => s.set((x) => { x.settings.creatine = v })} /></Row>
               <Btn kind="soft" className="w-full mt-3" onClick={() => s.open({ type: 'install' })}><Smartphone size={18} /> How to install on iPhone</Btn>
+              <div className="mt-4 pt-4 border-t border-line/50">
+                <div className="flex items-center justify-between gap-3">
+                  <div><div className="text-[15px] font-semibold">App version</div><div className="text-[12px] text-mute" data-testid="build-id">{__BUILD_ID__}</div></div>
+                  <Btn kind="soft" disabled={upBusy} onClick={async () => {
+                    setUpBusy(true)
+                    try { const r = await checkForUpdate(); if (r === 'latest') s.say('You already have the latest version'); else if (r === 'unsupported') s.say('Updates are checked automatically in the installed app') ; else s.say('Updating…') }
+                    catch { s.say('Could not check. Are you online?') } finally { setUpBusy(false) }
+                  }}>{upBusy ? 'Checking…' : 'Check for updates'}</Btn>
+                </div>
+                <p className="text-[12px] text-mute mt-2">Still not seeing a new feature? <button type="button" className="underline min-h-[32px]" onClick={() => void forceRefresh()}>Force refresh</button>. It reloads the app files and keeps all your data.</p>
+              </div>
             </Card>
           </Section>
 
